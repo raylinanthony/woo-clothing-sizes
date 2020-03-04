@@ -1,0 +1,112 @@
+/*
+Woo Clothes Sizes
+@author Raylin Aquino <info@raylinaquino.com>
+@url https://raylinaquino.com
+**/
+.my-sizes-ray, .my-sizes-ray *{
+    box-sizing:border-box;
+} 
+.my-sizes-ray{ 
+    display:flex;
+}
+.my-sizes-ray .sizes-menu{
+    flex:0 0 200px;
+    background:#f4f4f4;
+}
+.my-sizes-ray .sizes-menu ul{
+    list-style:none;
+    margin:0;
+    padding:0;
+}
+.my-sizes-ray .sizes-menu ul li{
+   display:flex;
+   flex-wrap:wrap;
+   cursor:pointer;
+   transition:all .3s ease;
+   padding:10px 20px;
+   margin: 0;
+   align-items: center;
+   line-height: 1;
+}
+.my-sizes-ray .sizes-menu ul li .wrap-text{
+    padding-left:12px;
+}
+.my-sizes-ray .sizes-menu ul li.active,
+.my-sizes-ray .sizes-menu ul li:hover
+{
+background:#d6d6d6;
+}
+.my-sizes-ray .sizes-tabs{
+    padding-left:20px;
+}
+.my-sizes-ray .sizes-tabs .tab{
+    display:flex;
+    flex-wrap:wrap;
+}
+.my-sizes-ray .sizes-tabs .tab .wrap-media{
+   flex:0 0 40%;
+}
+.my-sizes-ray .sizes-tabs .tab .wrap-form{
+  flex: 1;
+  padding-left: 2rem;
+}
+.my-sizes-ray .sizes-tabs form{
+    display:flex;
+    flex-wrap:wrap;
+}
+.my-sizes-ray .sizes-tabs form .form-col{
+    flex:0 0 40%;
+    margin: 0 2% 2rem;
+}
+.my-sizes-ray .sizes-tabs form .form-col-full{
+    flex: 1 100%;
+    margin: 0 2%;
+}
+.my-sizes-ray .sizes-tabs form .form-col-full button{
+    width:100%;
+}
+.my-sizes-ray .sizes-tabs .wrap-desc{
+    
+    font-size:14px;
+    margin-top:1rem;
+}
+@media(max-width: 990px) {
+    .woo-sec-address {
+        flex:0 1 47%;
+        margin-right: 5%;
+    }
+
+    .woo-sec-address:nth-child(2n) {
+        margin-right: 0;
+    }
+}
+@media (max-width:748px){
+   #milti-address-modal .woo-sec-address{
+        flex:0 0 46%;
+        margin:2%;
+    }
+}
+@media (max-width: 500px) {
+    .wrap-multi-dir-badged {
+        flex-wrap:wrap;
+        padding: 20px ;
+    }
+
+    .wrap-multi-dir-badged .txt {
+        font-size: 14px;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+}
+
+@media(max-width: 380px) {
+    .woo-sec-address {
+        flex:0 1 100%;
+        margin-right: 0;
+
+    }
+      #milti-address-modal .woo-sec-address{
+        flex:0 0 94%;
+        margin:3%;
+    }
+}
