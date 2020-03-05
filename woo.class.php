@@ -95,14 +95,24 @@ class WooClothingSizes{
 	}
 	public function my_sizes_item_account_content() {
 		$clothing  = get_field('clothing', 'option') ;
+		$general_sets  = get_field('clothing_general_sets', 'option') ;
+
 		//echo '<pre>',print_r($clothing);
 
 		?>
 		<section class="my-sizes-ray">
+
+			<div class="loading">
+				<div class="text">
+					<?php _e('Procesando...', 'woo_clothing_sizes'); ?>
+				</div>
+			</div>
 			<div class="sizes-menu">
 				<ul>
-					<?php foreach ($clothing as $cloth) :?>
-						<li data-anchor="tab-<?php echo sanitize_title(esc_html($cloth['name'])) ?>">
+					<?php 
+					$active  = 'active';
+					foreach ($clothing as $cloth) :?>
+						<li class=" <?php echo $active; ?>" data-anchor="#tab-<?php echo sanitize_title(esc_html($cloth['name'])) ?>">
 							<div class="wrap-icon">
 								<img src="<?php echo $cloth['icon'] ?>" width="30" alt="<?php echo $cloth['name'] ?>">
 							</div>
@@ -110,128 +120,138 @@ class WooClothingSizes{
 								<?php echo $cloth['name'] ?>
 							</div>
 						</li>  
-					<?php endforeach; ?>
-					
+						<?php $active  = '';  endforeach; ?>
 
-				</ul>
-			</div>
-			<div class="sizes-tabs">
-			<?php $active = 'active' ; foreach ($clothing as $cloth) : ?>
-	<aside class="tab <?php echo $active; ?>" id="tab-<?php echo sanitize_title(esc_html($cloth['name'])) ?>">
-					<div class="wrap-media">
-						<div class="wrap-img">
-							<img src="http://placehold.it/600x600" width="100%" alt="" />
-						</div>
-						<div class="wrap-video-info">
-							<div class="icon-video">
-								<img src="http://placehold.it" alt="">
+
+					</ul>
+				</div>
+				<div class="sizes-tabs">
+					<?php $active = 'active' ; foreach ($clothing as $cloth) : ?>
+					<aside class="tab <?php echo $active; ?>" id="tab-<?php echo sanitize_title(esc_html($cloth['name'])) ?>">
+						<div class="wrap-media">
+							<div class="wrap-img">
+								<img src="http://placehold.it/600x600" width="100%" alt="" />
 							</div>
-							<div class="label"></div>
+							<a href="https://www.youtube.com/watch?v=OjQ4GHyh4NA" data-lity class="wrap-video-info">
+								<div class="wrap-gif">
+									<img src="http://placehold.it/100x100" width="100" height="100" alt="" />
+								</div>
+								<div class="btn-video">
+									<i class="iconsizes_play"></i>
+								</div>
+								<div class="label"><?php echo $general_sets['btn_video_label'] ?></div>
+							</a>
+							<div class="wrap-desc">
+								Lorem ipsum dolor sit amet, consectetur adipisicing elit. Mollitia corporis eos eligendi! Porro facere ipsa libero aliquid adipisci commodi? Voluptates!
+							</div>
 						</div>
-						<div class="wrap-desc">
-							Lorem ipsum dolor sit amet, consectetur adipisicing elit. Mollitia corporis eos eligendi! Porro facere ipsa libero aliquid adipisci commodi? Voluptates!
-						</div>
-					</div>
-					<div class="wrap-form">
-						<form action="#">
-							<?php  foreach ($cloth['measures'] as $measures) :
-								$name_filtered = sanitize_title(esc_html($measures['name'])) ;
-							 ?>
-								<div class="form-col">
+						<div class="wrap-form">
+							<div class="before-form">
+								<?php _e('Escribe las medidas en pulgadas. <strong>Ej: 25</strong>'); ?>
+							</div>
+							<form action="#">
+								<?php  
+								$focus = true;
+								foreach ($cloth['measures'] as $measures) :
+									$name_filtered = sanitize_title(esc_html($measures['name'])) ;
+									$focus = false;
+									?>
+									<div class="form-col">
+										<div class="form-group">
+											<label for="<?php echo $name_filtered ?>"><?php echo $measures['name'] ?></label>						
+											<input type="number" id="<?php echo $name_filtered ?>" class="input-meter" name="<?php echo $name_filtered ?>"   data-img="<?php echo $measures['image']['sizes']['medium'] ?>" data-img-gif="<?php echo $measures['video_gif'] ?>" data-video="<?php echo $measures['video_id'] ?>" data-desc="<?php echo strip_tags($measures['desc']) ?>" <?php echo ($focus) ? 'autofocus' : ''; ?> maxlength="2" required />
+										</div>								
+									</div> 
+								<?php $focus = false; endforeach; ?>
+								<div class="form-col-full">
 									<div class="form-group">
-										<label for="<?php echo $name_filtered ?>"><?php echo $measures['name'] ?></label>						
-										<input type="number" id="<?php echo $name_filtered ?>" name="<?php echo $name_filtered ?>" placeholder="<?php _e('inch', 'woo_clothing_sizes') ?>" data-img="<?php echo $measures['image']['sizes']['medium'] ?>" data-img-gif="<?php echo $measures['video_gif'] ?>" data-video="<?php echo $measures['video_id'] ?>" data-desc="<?php echo strip_tags($measures['desc']) ?>" required />
+										<button type="submit" name="save_btn"><?php _e('Guardar medidas', 'woo_clothing_sizes') ?></button>
+										<?php echo $general_sets['text_after_save_btn'] ?>
 									</div>								
-								</div> 
-							<?php endforeach; ?>
-							<div class="form-col-full">
-								<div class="form-group">
-									<button type="submit" name="save_btn"><?php _e('Guardar medidas', 'woo_clothing_sizes') ?></button>
-								</div>								
-							</div>
-						</form>
-					</div>
-				</aside>
+								</div>
+							</form>
+						</div>
+					</aside>
 
-		<?php $active=''; endforeach; ?>
-			</div>
-		</section>
+					<?php $active=''; endforeach; ?>
+				</div>
+			</section>
 
-		<?php
+			<?php
 
-	}
-
-
-
-
-
-	public function  declare_query_vars_endpoint($vars) {
-
-		foreach ([$this->multi_slug] as $e) {
-			$vars[$e] = $e;
 		}
 
-		return $vars;
 
-	}
+
+
+
+		public function  declare_query_vars_endpoint($vars) {
+
+			foreach ([$this->multi_slug] as $e) {
+				$vars[$e] = $e;
+			}
+
+			return $vars;
+
+		}
 
 	// ------------------
 	// Registering Account Menu Panel
-	public function multiaddress_endpoint_title( $title, $id ) {
-		global $wp_query;
+		public function multiaddress_endpoint_title( $title, $id ) {
+			global $wp_query;
 
-		if ( is_wc_endpoint_url($this->multi_slug )   ) {
-			$title = __("Mis Direcciones", $this->plugin_name);
+			if ( is_wc_endpoint_url($this->multi_slug )   ) {
+				$title = __("Mis Direcciones", $this->plugin_name);
+			}
+			return $title;
 		}
-		return $title;
-	}
 
 
-	public function multiaddress_pane() {
+		public function multiaddress_pane() {
 
 
 
-		add_rewrite_endpoint( $this->multi_slug, EP_ROOT | EP_PAGES );
+			add_rewrite_endpoint( $this->multi_slug, EP_ROOT | EP_PAGES );
 
-	}
-	
-	public function multiaddress_queryvar( $vars ) {
-		$vars[] = $this->multi_slug;
-		return $vars;
-	}
-	
-	public function multiaddress_add_item( $items ) {
-		$items[$this->multi_slug] = __('Direcciones', $this->plugin_name);
-		return $items;
-	}
-	
-	public function get_address(){
-		return get_user_meta( $this->user_id, $this->address_option_name, true );
-	}
+		}
 
-	public function multiadress_content() {
+		public function multiaddress_queryvar( $vars ) {
+			$vars[] = $this->multi_slug;
+			return $vars;
+		}
 
-		$action = esc_html( $_GET['action'] );
-		$address =  $this->get_address()  ;
-		$current_address = get_user_meta( $this->user_id,  $this->address_current_option_name )[0];
+		public function multiaddress_add_item( $items ) {
+			$items[$this->multi_slug] = __('Direcciones', $this->plugin_name);
+			return $items;
+		}
+
+		public function get_address(){
+			return get_user_meta( $this->user_id, $this->address_option_name, true );
+		}
+
+		public function multiadress_content() {
+
+			$action = esc_html( $_GET['action'] );
+			$address =  $this->get_address()  ;
+			$current_address = get_user_meta( $this->user_id,  $this->address_current_option_name )[0];
 
 		//Ordering array put as first element the current address
-		if(!is_array($address) and empty($address)){
-			$this->save_first_address();
-		}  
+			if(!is_array($address) and empty($address)){
+				$this->save_first_address();
+			}  
 
-		if(array_key_exists($current_address, $address)){
-			
-			$address = array($current_address => $address[$current_address]) + $address;
-			
-		}
+			if(array_key_exists($current_address, $address)){
 
-		?>
-		<section class="woo-multi-address"> 
+				$address = array($current_address => $address[$current_address]) + $address;
 
-			<div class="section-address"> 
+			}
 
-				<?php if($action == 'add'): 
+			?>
+			<section class="woo-multi-address"> 
+
+				<div class="section-address"> 
+
+					<?php if($action == 'add'): 
 
 					/*wc_add_notice( __( 'Address changed successfully.', 'woocommerce' ) );
 
