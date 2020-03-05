@@ -116,7 +116,8 @@ class WooClothingSizes{
 				</ul>
 			</div>
 			<div class="sizes-tabs">
-				<aside class="tab">
+			<?php $active = 'active' ; foreach ($clothing as $cloth) : ?>
+	<aside class="tab <?php echo $active; ?>" id="tab-<?php echo sanitize_title(esc_html($cloth['name'])) ?>">
 					<div class="wrap-media">
 						<div class="wrap-img">
 							<img src="http://placehold.it/600x600" width="100%" alt="" />
@@ -133,17 +134,18 @@ class WooClothingSizes{
 					</div>
 					<div class="wrap-form">
 						<form action="#">
-							<?php for($a=1;$a<=5;$a++): ?>
+							<?php  foreach ($cloth['measures'] as $measures) :
+								$name_filtered = sanitize_title(esc_html($measures['name'])) ;
+							 ?>
 								<div class="form-col">
 									<div class="form-group">
-										<label for="a">Cuello</label>						
-										<input type="text" name="cuello" placeholder="cm" />
+										<label for="<?php echo $name_filtered ?>"><?php echo $measures['name'] ?></label>						
+										<input type="number" id="<?php echo $name_filtered ?>" name="<?php echo $name_filtered ?>" placeholder="<?php _e('inch', 'woo_clothing_sizes') ?>" data-img="<?php echo $measures['image']['sizes']['medium'] ?>" data-img-gif="<?php echo $measures['video_gif'] ?>" data-video="<?php echo $measures['video_id'] ?>" data-desc="<?php echo strip_tags($measures['desc']) ?>" required />
 									</div>								
 								</div> 
-							<?php endfor; ?>
+							<?php endforeach; ?>
 							<div class="form-col-full">
 								<div class="form-group">
-
 									<button type="submit" name="save_btn"><?php _e('Guardar medidas', 'woo_clothing_sizes') ?></button>
 								</div>								
 							</div>
@@ -151,6 +153,7 @@ class WooClothingSizes{
 					</div>
 				</aside>
 
+		<?php $active=''; endforeach; ?>
 			</div>
 		</section>
 
