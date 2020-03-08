@@ -10,15 +10,10 @@ Class for extend woocommerce functionality
 
 class WooClothingSizes{
 
-	public $plugin_name = 'woo_clothes_sizes';
-	public $max_address_allow = 6; //Only can store 3 address book
-	public $address_option_name = 'woo_clothes_sizes_';
-	public $address_current_option_name = 'WOO_CLO_SIZES_address_current_';
-	public $current_address;
-	public $multi_slug = 'multi-address';
+	public $plugin_name = 'woo_clothes_sizes';    
 	public $user_id;
 	public $nonce_name = 'submit_form_billing';
-
+	public $clothing_var = 'clothing-sizes';
 	public function __construct(){
 		@session_start();
 		$this->run();	 
@@ -33,10 +28,6 @@ class WooClothingSizes{
 
 		date_default_timezone_set('America/Santo_Domingo');
 
-		add_action('wp_enqueue_scripts',array( $this, 'plugin_scripts'),0);
-		add_action('admin_enqueue_scripts',array( $this, 'plugin_scripts'),0);
-		add_action('admin_head', array( $this,'fix_svg_thumb_display'));
-		//add_action( 'init', array( $this,'save_fields_checkout') );
 
 		if( function_exists('acf_add_options_page') ) {
 			
@@ -49,9 +40,17 @@ class WooClothingSizes{
 			));
 			
 		}
-	/**-----
+
+	/** -----
 	Options Setting Panel 
 	------**/ 
+	add_action('wp_enqueue_scripts',array( $this, 'plugin_scripts'),0);
+	add_action('admin_enqueue_scripts',array( $this, 'plugin_scripts'),0);
+	add_action('admin_head', array( $this,'fix_svg_thumb_display')); 
+	add_action( 'wp_ajax_nopriv_save_sizes', array( $this,'save_fields' ));
+	add_action( 'wp_ajax_save_sizes',array( $this, 'save_fields' ));
+
+
 	add_filter('upload_mimes', array( $this,'cc_mime_types'));
 		/**---------------
 		Activating a new my sizes tab in the account page
@@ -65,48 +64,170 @@ class WooClothingSizes{
 
 		//add_filter( "woocommerce_get_query_vars",  array($this, 'declare_query_vars_endpoint'),1,1);
 
+		add_filter( 'woocommerce_add_cart_item_data', array($this,'add_size_to_cart_item'), 10, 3 );
+		add_filter( 'woocommerce_get_item_data', array($this,'display_size_cart'), 10, 2 );
+		add_action( 'woocommerce_checkout_create_order_line_item', array($this,'add_text_to_order_items'), 10, 4 );
+		add_action( 'woocommerce_before_add_to_cart_form', array($this,'size_chart_product_page' ));
+		add_action( 'woocommerce_before_add_to_cart_button', array($this,'display_fields_on_product_page' ));
+
 
 	}
-	public function fix_svg_thumb_display() {
-		echo '
-		td.media-icon img[src$=".svg"], img[src$=".svg"].attachment-post-thumbnail { 
-			width: 100% !important; 
-			height: auto !important; 
+
+	public function display_fields_on_product_page(){
+		$cloth_name =  get_field('size_chart_type' ) ;
+
+		$saved_data =  maybe_unserialize( get_user_meta( get_current_user_id(),  $this->plugin_name.'_'.$cloth_name, true)) ;
+
+		if(!$saved_data) {
+				//getting default fields 
+			$saved_data = $this->get_measument_fields();
 		}
-		';
-	}
 
-	public function cc_mime_types($mimes) {
-		$mimes['svg'] = 'image/svg+xml';
-		return $mimes;
-	}
-
-	public function my_sizes_item_account( $items ) {
-
-		$items['my-sizes'] = __( 'My Sizes', 'woo_clothes_sizes' );
-
-		return $items;
+		?>
+		<input type="hidden" name="cloth_name" value="<?php echo $cloth_name; ?>"  />
+		<?php
+		foreach ((array) $saved_data as $key=>$value):
+			$value = ($value === true) ? '': $value;
+			?>
+			<input type="hidden" name="<?php echo $key; ?>" value="<?php echo $value; ?>"  />
+			<?php	
+		endforeach;
 
 	}
-	public function my_sizes_item_account_endpoint() {
+	public function display_size_cart( $item_data, $cart_item ) {
+		$cloth_name = $_SESSION['woo_cloth_name'];
 
-		add_rewrite_endpoint( 'my-sizes', EP_PAGES );
 
+		if ( empty( $cart_item[$cloth_name] ) ) {
+			return $item_data;
+		}
+		
+		$item_data[] = array(
+			'key'     => $cloth_name,
+			'value'   => wc_clean( $cart_item[$cloth_name] ),
+			'display' => '',
+		);
+		
+		return $item_data;
 	}
-	public function my_sizes_item_account_content() {
-		$clothing  = get_field('clothing', 'option') ;
-		$general_sets  = get_field('clothing_general_sets', 'option') ;
+	
+
+	public function add_size_to_cart_item( $cart_item_data, $product_id, $variation_id ) {
+		$cloth_name = ucwords(esc_html( $_POST['cloth_name'] ));
+
+		if(empty($cloth_name)) return;
+
+		$data_sizes = []; 
+
+		$_SESSION['woo_cloth_name'] =  $cloth_name ;
+
+		foreach ($_POST as $key => $value) {
+			if(empty($value)) continue;
+			if(strpos($key, 'size-') !== false ){
+				$key = str_replace('size-', '', esc_html($key));
+				$data_sizes[] = ucwords(str_replace('-', ' ', $key)).': '. esc_html( $value );
+			}
+
+		}
+
+		$cart_item_data[$cloth_name] = implode(', ', $data_sizes);
+
+		return $cart_item_data;
+	}
+
+/**
+ * Add  text to order.
+ *
+ * @param WC_Order_Item_Product $item
+ * @param string                $cart_item_key
+ * @param array                 $values
+ * @param WC_Order              $order
+ */
+public function add_text_to_order_items( $item, $cart_item_key, $values, $order ) {
+
+	$cloth_name = $_SESSION['woo_cloth_name'];
+
+	if ( empty( $values[$cloth_name] ) ) {
+		return;
+	}
+
+	$item->add_meta_data($cloth_name, wc_clean( $values[$cloth_name] ) );
+}
+
+
+
+public function fix_svg_thumb_display() {
+	echo '
+	td.media-icon img[src$=".svg"], img[src$=".svg"].attachment-post-thumbnail { 
+		width: 100% !important; 
+		height: auto !important; 
+	}
+	';
+}
+
+public function cc_mime_types($mimes) {
+	$mimes['svg'] = 'image/svg+xml';
+	return $mimes;
+}
+public function get_measument_fields(){
+
+	$clothing_type = get_field('size_chart_type');
+	$clothing = get_field('clothing', 'option');
+	$arr_fields = [];
+	
+	if(empty($clothing_type)) return;
+
+	foreach ($clothing as $cloth) :
+
+		$cloth_name = sanitize_title(esc_attr( $cloth['name'] ));
+
+		if(!empty($current_clothing)){
+
+			if($cloth_name != $current_clothing) continue;
+		}
+
+
+		foreach ($cloth['measures'] as $measures) :
+
+			$name_filtered = 'size-'.sanitize_title(esc_html($measures['name'])) ;	
+			$arr_fields[$name_filtered] = true;
+		
+		endforeach;
+
+	endforeach;
+	
+	return $arr_fields;
+
+}
+public function my_sizes_item_account( $items ) {
+
+	$items['my-sizes'] = __( 'My Sizes', 'woo_clothes_sizes' );
+	return $items;
+
+}
+public function my_sizes_item_account_endpoint() {
+
+	add_rewrite_endpoint( 'my-sizes', EP_PAGES );
+
+}
+public function my_sizes_item_account_content($current_clothing) {
+	
+	$this->user_id = get_current_user_id();
+	$form_cls = ($this->user_id == 0) ? 'no-logged' : '';
+	$clothing  = get_field('clothing', 'option') ;
+	$general_sets  = get_field('clothing_general_sets', 'option') ;
 
 		//echo '<pre>',print_r($clothing);
 
-		?>
-		<section class="my-sizes-ray">
+	?>
+	<section class="my-sizes-ray">
 
-			<div class="loading">
-				<div class="text">
-					<?php _e('Procesando...', 'woo_clothing_sizes'); ?>
-				</div>
+		<div class="loading">
+			<div class="text">
+				<?php _e('Procesando...', 'woo_clothing_sizes'); ?>
 			</div>
+		</div>
+		<?php if(empty($current_clothing)): ?>
 			<div class="sizes-menu">
 				<ul>
 					<?php 
@@ -125,8 +246,22 @@ class WooClothingSizes{
 
 					</ul>
 				</div>
-				<div class="sizes-tabs">
-					<?php $active = 'active' ; foreach ($clothing as $cloth) : ?>
+			<?php endif; ?>
+			<div class="sizes-tabs">
+				<?php 
+				$active = 'active' ; 
+				foreach ($clothing as $cloth) :
+
+					$cloth_name = sanitize_title(esc_attr( $cloth['name'] ));
+
+					if(!empty($current_clothing)){
+						
+						if($cloth_name != $current_clothing) continue;
+					}
+
+					$saved_data =  maybe_unserialize( get_user_meta( $this->user_id,  $this->plugin_name.'_'.$cloth_name, true)) ;	
+
+					?>
 					<aside class="tab <?php echo $active; ?>" id="tab-<?php echo sanitize_title(esc_html($cloth['name'])) ?>">
 						<div class="wrap-media">
 							<div class="wrap-img">
@@ -141,117 +276,127 @@ class WooClothingSizes{
 								</div>
 								<div class="label"><?php echo $general_sets['btn_video_label'] ?></div>
 							</a>
-							<div class="wrap-desc">
-								Lorem ipsum dolor sit amet, consectetur adipisicing elit. Mollitia corporis eos eligendi! Porro facere ipsa libero aliquid adipisci commodi? Voluptates!
-							</div>
+							<div class="wrap-desc"> </div>
 						</div>
 						<div class="wrap-form">
 							<div class="before-form">
 								<?php _e('Escribe las medidas en pulgadas. <strong>Ej: 25</strong>'); ?>
 							</div>
-							<form action="#">
+							<form action="#" class="woo_sizes_form <?php echo $form_cls; ?>" method="POST" data-name="<?php echo $cloth_name;?>">
 								<?php  
-								$focus = true;
+								
 								foreach ($cloth['measures'] as $measures) :
-									$name_filtered = sanitize_title(esc_html($measures['name'])) ;
-									$focus = false;
+									$name_filtered = 'size-'.sanitize_title(esc_html($measures['name'])) ;								
 									?>
 									<div class="form-col">
 										<div class="form-group">
 											<label for="<?php echo $name_filtered ?>"><?php echo $measures['name'] ?></label>						
-											<input type="number" id="<?php echo $name_filtered ?>" class="input-meter" name="<?php echo $name_filtered ?>"   data-img="<?php echo $measures['image']['sizes']['medium'] ?>" data-img-gif="<?php echo $measures['video_gif'] ?>" data-video="<?php echo $measures['video_id'] ?>" data-desc="<?php echo strip_tags($measures['desc']) ?>" <?php echo ($focus) ? 'autofocus' : ''; ?> maxlength="2" required />
+											<input type="number"   oninput="maxLengthCheck(this)"  id="<?php echo $name_filtered ?>" class="input-meter" name="<?php echo $name_filtered ?>"  data-img="<?php echo $measures['image']['sizes']['medium'] ?>" data-img-gif="<?php echo $measures['video_gif'] ?>"  step="0.01" data-video="<?php echo $measures['video_id'] ?>" data-desc="<?php echo strip_tags($measures['desc']) ?>"   maxlength="5" min="2" max="100" value="<?php echo $saved_data[$name_filtered]; ?>" required />
+
 										</div>								
 									</div> 
-								<?php $focus = false; endforeach; ?>
-								<div class="form-col-full">
-									<div class="form-group">
-										<button type="submit" name="save_btn"><?php _e('Guardar medidas', 'woo_clothing_sizes') ?></button>
-										<?php echo $general_sets['text_after_save_btn'] ?>
-									</div>								
+									<?php $focus = false; endforeach; ?>
+									<div class="form-col-full">
+										<div class="form-group">
+											<input type="hidden" name="cloth_name" value="<?php echo $cloth_name; ?>">
+											<input type="hidden" name="action" value="update_sizes" />
+
+
+											<?php  	if($this->user_id == 0): ?>
+												Necesitas <a href="<?php echo get_permalink( wc_get_page_id( 'myaccount' ) ); ?>" id="btn-create-account"><?php _e('crear una cuenta', 'woo_clothing_sizes') ?></a> o <a href="<?php echo get_permalink( wc_get_page_id( 'myaccount' ) ); ?>" id="btn-login"><?php _e('iniciar sesión', 'woo_clothing_sizes') ?></a> para guardar estas medidas permanentemente y reutilizarla en otras compras.
+												<?php else: ?>
+													<button type="submit" name="save_btn"><?php _e('Guardar medidas', 'woo_clothing_sizes') ?></button>
+													<?php echo $general_sets['text_after_save_btn'] ?>
+												<?php endif; ?>
+												<!-- showing info about form sumitted -->
+												<div class="msg-size"></div>
+
+
+											</div>								
+										</div>
+									</form>
 								</div>
-							</form>
+							</aside>
+
+							<?php $active=''; endforeach; ?>
 						</div>
-					</aside>
+					</section>
 
-					<?php $active=''; endforeach; ?>
-				</div>
-			</section>
+					<?php
 
-			<?php
-
-		}
+				}
 
 
 
 
 
-		public function  declare_query_vars_endpoint($vars) {
+				public function  declare_query_vars_endpoint($vars) {
 
-			foreach ([$this->multi_slug] as $e) {
-				$vars[$e] = $e;
-			}
+					foreach ([$this->multi_slug] as $e) {
+						$vars[$e] = $e;
+					}
 
-			return $vars;
+					return $vars;
 
-		}
+				}
 
 	// ------------------
 	// Registering Account Menu Panel
-		public function multiaddress_endpoint_title( $title, $id ) {
-			global $wp_query;
+				public function multiaddress_endpoint_title( $title, $id ) {
+					global $wp_query;
 
-			if ( is_wc_endpoint_url($this->multi_slug )   ) {
-				$title = __("Mis Direcciones", $this->plugin_name);
-			}
-			return $title;
-		}
-
-
-		public function multiaddress_pane() {
+					if ( is_wc_endpoint_url($this->multi_slug )   ) {
+						$title = __("Mis Direcciones", $this->plugin_name);
+					}
+					return $title;
+				}
 
 
+				public function multiaddress_pane() {
 
-			add_rewrite_endpoint( $this->multi_slug, EP_ROOT | EP_PAGES );
 
-		}
 
-		public function multiaddress_queryvar( $vars ) {
-			$vars[] = $this->multi_slug;
-			return $vars;
-		}
+					add_rewrite_endpoint( $this->multi_slug, EP_ROOT | EP_PAGES );
 
-		public function multiaddress_add_item( $items ) {
-			$items[$this->multi_slug] = __('Direcciones', $this->plugin_name);
-			return $items;
-		}
+				}
 
-		public function get_address(){
-			return get_user_meta( $this->user_id, $this->address_option_name, true );
-		}
+				public function multiaddress_queryvar( $vars ) {
+					$vars[] = $this->multi_slug;
+					return $vars;
+				}
 
-		public function multiadress_content() {
+				public function multiaddress_add_item( $items ) {
+					$items[$this->multi_slug] = __('Direcciones', $this->plugin_name);
+					return $items;
+				}
 
-			$action = esc_html( $_GET['action'] );
-			$address =  $this->get_address()  ;
-			$current_address = get_user_meta( $this->user_id,  $this->address_current_option_name )[0];
+				public function get_address(){
+					return get_user_meta( $this->user_id, $this->address_option_name, true );
+				}
+
+				public function multiadress_content() {
+
+					$action = esc_html( $_GET['action'] );
+					$address =  $this->get_address()  ;
+					$current_address = get_user_meta( $this->user_id,  $this->address_current_option_name )[0];
 
 		//Ordering array put as first element the current address
-			if(!is_array($address) and empty($address)){
-				$this->save_first_address();
-			}  
+					if(!is_array($address) and empty($address)){
+						$this->save_first_address();
+					}  
 
-			if(array_key_exists($current_address, $address)){
+					if(array_key_exists($current_address, $address)){
 
-				$address = array($current_address => $address[$current_address]) + $address;
+						$address = array($current_address => $address[$current_address]) + $address;
 
-			}
+					}
 
-			?>
-			<section class="woo-multi-address"> 
+					?>
+					<section class="woo-multi-address"> 
 
-				<div class="section-address"> 
+						<div class="section-address"> 
 
-					<?php if($action == 'add'): 
+							<?php if($action == 'add'): 
 
 					/*wc_add_notice( __( 'Address changed successfully.', 'woocommerce' ) );
 
@@ -309,240 +454,87 @@ class WooClothingSizes{
 		endif;
 	}
 
-	public function delete_address(){
 
 
-	}
+	public function save_fields(){
 
-	public function save_first_address(){
-
-		if($this->user_id == 0) return;
-
-		$meta  = get_user_meta( $this->user_id);
-		$billing_arr = [
-			'billing_address_name' => __('Predeterminada', $this->plugin_name)
-		];
-
-		foreach ($meta as $key => $curmeta) {
-
-			if(strpos($key, 'billing_') !== false){
-				$billing_arr[$key] = $curmeta[0];
-			}
-
-		}
-
-		delete_user_meta( $this->user_id,  $this->address_current_option_name );
-		add_user_meta( $this->user_id,  $this->address_current_option_name, 0 );
-
-		add_user_meta( $this->user_id,  $this->address_option_name, array(maybe_serialize( wc_clean($billing_arr))) );	 
-		wp_safe_redirect(  $this->get_multi_address_link()  ); 
-	}
-
-	public function save_fields_checkout(){
 
 		$this->user_id = get_current_user_id();
 
+		    // Check for nonce security
+		$nonce = sanitize_text_field( $_POST['nonce'] );
+		$data = wc_clean($_POST['data'] );
+
+		if ( ! wp_verify_nonce( $nonce, 'save_data' ) ) {
+			
+			$status = [
+				'code'=>400,
+				'status'=> 'error',
+				'body'=> 'Nonce error found!'
+			];
+
+			echo json_encode($status);
+			wp_die();
+		}	
 
 
-		if($_GET['force_delete'] == 1){
-			delete_user_meta( $this->user_id,  $this->address_option_name);
-			delete_user_meta( $this->user_id,  $this->address_current_option_name);
+		if( $data['action'] == 'update_sizes'){
 
-		}
+			//$address_id = $this->decryptData('SET_DEFAULT-',$_GET['address_id'])[1] ; 
+			//$addr = get_user_meta( $this->user_id,  $this->address_option_name)[0][$address_id];
+
+			$cloth_name = esc_attr( $data['cloth_name'] );
+
+ 			//echo '<pre>', print_r($sizes); return;
+			$data_sizes = [];
 
 
+				// Filtering only the size
+			foreach ($data as $key => $value) {
 
-		if( $_GET['action'] == 'set_default'){
-
-			$address_id = $this->decryptData('SET_DEFAULT-',$_GET['address_id'])[1] ; 
-			$addr = get_user_meta( $this->user_id,  $this->address_option_name)[0][$address_id];
-
-			if($addr and is_numeric($address_id)){
-
-				$addr = maybe_unserialize( $addr );
-
-				foreach ($addr as $meta_key => $meta_value) {
-
-					if(strpos($meta_key, 'billing_') === 0){
-
-						update_user_meta(  $this->user_id, $meta_key, $meta_value );
-					}
-
+				if(strpos($key, 'size-') !== false ){
+					$data_sizes[esc_attr($key)] = esc_attr( $value ) ;
 				}
-				delete_user_meta( $this->user_id,  $this->address_current_option_name );	
-				add_user_meta( $this->user_id,  $this->address_current_option_name, $address_id );	
-
-				wp_safe_redirect(  wp_get_referer()  ); 
-				wc_add_notice(  __('Dirección cambiada exitosamente.', $this->plugin_name), 'success' );	
-				die;
-
 
 			}
 
 
-		} else 	if( $_GET['action'] == 'delete'){
+			delete_user_meta( $this->user_id,  $this->plugin_name.'_'.$cloth_name );	
+			add_user_meta( $this->user_id,  $this->plugin_name.'_'.$cloth_name, maybe_serialize( $data_sizes ) );	 
 
-			$address_id = $this->decryptData('DELETE-',$_GET['address_id'])[1] ; 
-
-			if( is_numeric($address_id)){
-
-				$address = $this->get_address();
-
-				unset($address[$address_id]);
-
-				delete_user_meta( $this->user_id, $this->address_option_name );
-				add_user_meta( $this->user_id,  $this->address_option_name, $address);
-
-				wp_safe_redirect(  $this->get_multi_address_link()  ); 
-				wc_add_notice(  __('Dirección eliminada exitosamente.', $this->plugin_name), 'success' );	
-				die;
+			$status = [
+				'code'=>200,
+				'status'=> 'success',
+				'body'=> __('¡Guardado con éxito!','woo_clothing_sizes')
+			];
+			echo json_encode($status);
 
 
 
-			}
+		} 
+		wp_die();
 
-
-		}
-
-
-
-		if(!empty($_POST['save_address_field']) and isset($_POST['save_address_field'])){
-
-
-
-			if ( !isset( $_POST[$this->nonce_name.'_field'] ) or !wp_verify_nonce( $_POST[$this->nonce_name.'_field'], $this->nonce_name ) ) {
-				print 'Nonce disable';
-				return;  
-			}
-
-
-
-			unset($_POST['openinghours_time'],
-				$_POST['activecampaign_for_woocommerce_accepts_marketing']);
-
-			if ( preg_match( '/\\d/', $_POST[ 'billing_first_name' ] ) || preg_match( '/\\d/', $_POST[ 'billing_last_name' ] )  ){
-
-				wc_add_notice(  __('Nombres y Apellidos no deben contener números.', $this->plugin_name), 'error' );
-
-			} 
-
-			if ( !preg_match('/^[0-9]*$/', $_POST['billing_company'])   ){
-
-				wc_add_notice(  __('RNC sólo son 9 dígitos y no debe contener números.', $this->plugin_name), 'error' );
-
-			}
-
-
-			unset($_POST['save_address_field']); 
-
-			$address = $this->get_address();
-
-			if($_POST['action_do'] == 'edit'){
-
-				$address_id = $this->decryptData('EDIT-',$_GET['address_id'])[1];
-
-				$address[$address_id] = maybe_serialize( wc_clean($_POST));
-
-			} else {
-
-				$address[] = maybe_serialize( wc_clean($_POST));
-
-			}
-
-			update_user_meta( $this->user_id,  $this->address_option_name, $address );	 
-
-			wp_safe_redirect(  $this->get_multi_address_link()  ); 
-			wc_add_notice(  __('Guardado exitosamente.', $this->plugin_name), 'success' );
-			die;
-		}
 
 
 	}
 
+	public function size_chart_product_page(){
+
+		$clothing_type = get_field('size_chart_type');
+
+		if(empty($clothing_type)) return;
+
+		return 	$this->my_sizes_item_account_content($clothing_type);
+	}
 	public function decryptData($delimiter, $data) { 
 		return explode($delimiter, decryptIt(wc_clean($data)));
 	}
-	/** Retrieve checkout form **/
-	public function get_fields_checkout() { 
 
-		if ( !is_user_logged_in() ) return;
-
-	if(($user_id = get_current_user_id()) == 0 ) return; //Only works for Users logged.
-	//if(!is_checkout()) return;
-
-	$countries = new WC_Checkout(); 
-	$address_id =   $this->decryptData('EDIT',$_GET['address_id'])[1] ;
-
-	/**
-	Setting address default
-	***/
-
-	?>
-	<a href="<?php echo $this->get_multi_address_link(); ?>"><?php _e('< Ir a Direcciones', $this->plugin_name); ?></a> <br> <br>
-	<form action="" class="form-checkout" method="post" accept-charset="utf-8"> 
-		<p class="form-row" id="billing_address_field" >
-			<label for="billing_address_name"  ><?php _e('Indica el nombre de esta dirección', $this->plugin_name) ?>&nbsp;<abbr class="required" title="<?php _e('obligatorio', $this->plugin_name) ?>">*</abbr></label>
-			<span class="woocommerce-input-wrapper"><input type="text" value="<?php echo $_POST['billing_address_name'] ?>" class="input-text" maxlength="20" required name="billing_address_name" id="billing_address_name"  ></span></p>
-
-			<?php echo $countries->checkout_form_billing() ?>
-
-			<input type="hidden" name="save_address_field" value="save_checkout">
-
-			<?php if($_GET['action'] == 'edit'): ?>
-
-				<input type="hidden" name="action_do" value="edit">
-				<input type="hidden" name="field_id" value="<?php echo $address_id ?>">
-
-			<?php endif; ?>
-
-			<?php  wp_nonce_field( $this->nonce_name , $this->nonce_name.'_field'); ?>
-
-			<button type="submit" name="save_address" class="save_address" value="save" data-after-send="<?php _e('Guardando...', $this->plugin_name) ?>"><?php _e('Guardar', $this->plugin_name) ?></button>
-		</form>
-		<?php 
-
-	}
 
 	private function get_multi_address_link(){
 		return get_permalink( get_option('woocommerce_myaccount_page_id') ).''.$this->multi_slug;  	
 	}
 
-	public function generate_address_card($current_key, $arr, $current_address, $plugin_name){
-
-	//echo $current_address;
-	//var_dump($current_key , $current_address);
-		?>
-		<aside class="woo-sec-address <?php echo ($current_key == $current_address) ? 'default': ""; ?>">
-			<div class="title"><?php echo $arr['billing_address_name'] ?></div>
-			<div class="desc">
-				<?php echo $arr['billing_first_name'] ?> <?php echo $arr['billing_last_name'] ?><br>
-				<?php echo $arr['billing_address_1'] ?>, <?php echo $arr['billing_address_2'] ?>, <?php echo $arr['billing_state'] ?><br>
-				Tel:  <?php echo $arr['billing_phone'] ?> <br>
-				<?php if(!empty( $arr['billing_company'])): ?>
-					RNC: <?php echo $arr['billing_company'] ?>, <?php echo $arr['billing_company_2'] ?> 
-				<?php endif; ?> 
-			</div>
-			<div class="actions">
-
-				<div class="wrap-link-action">
-					<?php if($current_key == $current_address): ?>
-						<a href="javascript:;" class="trans-3 btn current" data-oso="<?php echo $current_key; ?>"><?php _e('Actual',  $plugin_name) ?></a>
-						<?php else: ?>
-							<a href="<?php echo  $this->get_multi_address_link(); ?>?action=set_default&address_id=<?php echo encryptIt('SET_DEFAULT-'.$current_key);?>" class="trans-3 btn" data-oso="<?php echo $current_key; ?>"><?php _e('Predeterminar',  $plugin_name) ?></a>
-						<?php endif; ?>
-					</div>			 
-					<a href="<?php echo  $this->get_multi_address_link(); ?>?action=edit&address_id=<?php echo encryptIt('EDIT-'.$current_key);?>" class="edit"><?php _e('Editar',  $plugin_name) ?></a>
-					<?php if($current_key != $current_address): ?> &nbsp;|&nbsp;
-					<a href="<?php echo  $this->get_multi_address_link(); ?>?action=delete&address_id=<?php echo encryptIt('DELETE-'.$current_key);?>" onClick="return confirm('<?php _e('¿Estás seguro/a de eliminar esta dirección?',  $plugin_name) ?>');" class="delete"><?php _e('Eliminar',  $plugin_name) ?></a>
-				<?php endif; ?>
-
-			</div>
-		</aside>
-
-
-		<?php
-		$current_key++;
-	}
 
 	public function plugin_scripts()
 	{
@@ -552,13 +544,17 @@ class WooClothingSizes{
 		wp_register_style( $this->plugin_name.'-css', WOO_CLO_SIZES_CURRENT_URL . 'assets/css/style.css');  
 		//wp_register_style( $this->plugin_name.'-jquery-ui-css', WOO_CLO_SIZES_CURRENT_URL . 'assets/css/jquery-ui.css');  
 
-
 		/** JS **/ 
 
 		wp_register_script( $this->plugin_name.'-js', WOO_CLO_SIZES_CURRENT_URL . 'assets/js/main.js', '', '', true);
 
 		wp_enqueue_script(  $this->plugin_name.'-js' );
 		wp_enqueue_style ( $this->plugin_name.'-css');
+
+		wp_enqueue_style($this->plugin_name.'lity-css',   WOO_CLO_SIZES_CURRENT_URL . 'assets/css/lity.min.css'); 
+		wp_enqueue_script( $this->plugin_name.'-lity-js',  WOO_CLO_SIZES_CURRENT_URL . 'assets/js/lity.min.js', '', '', true);
+
+
 		//wp_enqueue_style ( $this->plugin_name.'-jquery-ui-css');
 
 
@@ -566,18 +562,11 @@ class WooClothingSizes{
 			'ajax_url' => admin_url( 'admin-ajax.php' ),
 			'site_url' => get_site_url(),
 			'title' => get_bloginfo('name'),
-	       	//'ajax_nonce' => wp_create_nonce('hola'),
+			'ajax_nonce' => wp_create_nonce('save_data'),
 		);
 
-		if($_GET['action'] == 'edit' and $_GET['address_id'] != ''){
-			
-			$address_id =  $this->decryptData('EDIT-',$_GET['address_id']);
 
-			$args['form_data'] = maybe_unserialize( $this->get_address()[$address_id[1]]);
-			
-		}
-		
-		wp_localize_script( $this->plugin_name.'-js', 'wooMultiData', $args);
+		wp_localize_script( $this->plugin_name.'-js', 'wooSizes', $args);
 	}
 
 
